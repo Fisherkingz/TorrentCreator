@@ -1,0 +1,15 @@
+.build-tools/
+build-windows/
+dist-windows/
+build/
+dist/
+venv/
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.exe
+*.torrent
+*_preview.gif
+*_preview.webp
+*_contactsheet.jpg
