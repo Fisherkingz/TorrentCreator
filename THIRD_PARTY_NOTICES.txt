@@ -1,0 +1,35 @@
+THIRD-PARTY COMPONENTS
+======================
+
+FFmpeg / FFprobe
+----------------
+TorrentCreator uses FFmpeg and FFprobe as separate executable programs for
+video information, screenshots, contact sheets, and animated GIF previews.
+
+The Windows build script downloads FFmpeg Essentials from:
+https://www.gyan.dev/ffmpeg/builds/
+
+FFmpeg project:
+https://ffmpeg.org/
+
+FFmpeg is free software and is distributed under the license terms applicable
+to the downloaded build. See the FFmpeg project and build provider for license
+details.
+
+Pillow
+------
+Pillow is used for JPEG screenshots and the contact sheet.
+Project: https://python-pillow.github.io/
+
+PyInstaller
+-----------
+Used to package the Windows application.
+Project: https://pyinstaller.org/
+
+tkinterdnd2
+-----------
+Used for drag & drop support in the Windows interface.
+Project: https://pypi.org/project/tkinterdnd2/
+
+
+TorrentCreator uses the WebP encoder provided by the bundled FFmpeg build (libwebp/libwebp_anim) when animated WebP output is selected.

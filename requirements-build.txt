@@ -1,0 +1,3 @@
+Pillow>=10.0
+tkinterdnd2>=0.4.3
+PyInstaller>=6.15
