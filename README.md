@@ -215,9 +215,9 @@ The information row includes:
 - Bitrate
 - File size
 
-## HamsterImg
+## Imagehost
 
-TorrentCreator can upload selected generated media to HamsterImg after a job completes.
+TorrentCreator can upload selected generated media to Imagehost after a job completes.
 
 - API key is entered inside TorrentCreator.
 - **Save key securely** stores it in Windows Credential Manager.
@@ -225,7 +225,7 @@ TorrentCreator can upload selected generated media to HamsterImg after a job com
 - Optional tags, Album ID, Category ID and NSFW marking are supported.
 - Upload files one at a time.
 - Output is **BBCode Full only**.
-- A file named like `MyVideo_HamsterImg_BBCode_Full.txt` is written after a successful upload.
+- A file named like `MyVideo_Imagehost_BBCode_Full.txt` is written after a successful upload.
 
 ## Privacy mode
 
