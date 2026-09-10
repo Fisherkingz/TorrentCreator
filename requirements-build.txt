@@ -1,3 +1,4 @@
 Pillow>=10.0
 tkinterdnd2>=0.4.3
+python-vlc>=3.0.21203
 PyInstaller>=6.15

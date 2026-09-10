@@ -10,6 +10,10 @@ __pycache__/
 *.pyo
 *.exe
 *.torrent
+*_screenshot_*.jpg
+*_layout_*.jpg
 *_preview.gif
 *_preview.webp
-*_contactsheet.jpg
+*_HamsterImg_links.txt
+
+.updates/

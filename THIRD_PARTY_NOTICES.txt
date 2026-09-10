@@ -33,3 +33,29 @@ Project: https://pypi.org/project/tkinterdnd2/
 
 
 TorrentCreator uses the WebP encoder provided by the bundled FFmpeg build (libwebp/libwebp_anim) when animated WebP output is selected.
+
+HamsterImg API
+--------------
+TorrentCreator can optionally upload generated preview media to HamsterImg via
+its public API. No HamsterImg software is bundled with TorrentCreator.
+API documentation: https://hamsterimg.net/api-v1
+
+VLC / libVLC
+------------
+TorrentCreator v3.1 can bundle the VLC 3.0.23 runtime for the embedded Preview
+player. The build script downloads the official 64-bit ZIP package from
+VideoLAN:
+https://get.videolan.org/vlc/3.0.23/win64/
+
+VLC project and license information:
+https://www.videolan.org/vlc/
+https://www.videolan.org/legal.html
+
+VLC/libVLC remains a separate third-party component and is distributed under
+its own applicable open-source license terms.
+
+python-vlc
+----------
+TorrentCreator uses the python-vlc bindings to control libVLC from the Preview
+panel.
+Project: https://pypi.org/project/python-vlc/

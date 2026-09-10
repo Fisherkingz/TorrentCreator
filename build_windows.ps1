@@ -40,6 +40,9 @@ $Venv = Join-Path $BuildTools "venv"
 $FfmpegDir = Join-Path $BuildTools "ffmpeg"
 $FfmpegZip = Join-Path $BuildTools "ffmpeg-release-essentials.zip"
 $FfmpegUrl = "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip"
+$VlcDir = Join-Path $BuildTools "vlc"
+$VlcZip = Join-Path $BuildTools "vlc-3.0.23-win64.zip"
+$VlcUrl = "https://get.videolan.org/vlc/3.0.23/win64/vlc-3.0.23-win64.zip"
 
 New-Item -ItemType Directory -Force -Path $BuildTools | Out-Null
 
@@ -86,20 +89,72 @@ if (-not $ffmpeg -or -not $ffprobe) {
 Write-Host "FFmpeg:  $($ffmpeg.FullName)"
 Write-Host "FFprobe: $($ffprobe.FullName)"
 
-# 2) Use a dedicated virtual environment so the user's regular Python installation is not modified.
-if (-not (Test-Path (Join-Path $Venv "Scripts\python.exe"))) {
-    Write-Host "Creating temporary Python build environment..." -ForegroundColor Yellow
+# 2) Download a portable VLC/libVLC runtime for the embedded Preview player.
+$libvlc = Get-ChildItem -Path $VlcDir -Filter "libvlc.dll" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+$libvlccore = Get-ChildItem -Path $VlcDir -Filter "libvlccore.dll" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+$vlcPlugins = Get-ChildItem -Path $VlcDir -Directory -Filter "plugins" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+
+if (-not $libvlc -or -not $libvlccore -or -not $vlcPlugins) {
+    Write-Host "Downloading VLC 3.0.23 runtime for the embedded Preview player..." -ForegroundColor Yellow
+    if (Test-Path $VlcDir) { Remove-Item $VlcDir -Recurse -Force }
+    New-Item -ItemType Directory -Force -Path $VlcDir | Out-Null
+    $vlcPart = "$VlcZip.part"
+    if (Test-Path $vlcPart) { Remove-Item $vlcPart -Force }
+    $curl = Get-Command curl.exe -ErrorAction SilentlyContinue
+    if ($curl) {
+        & $curl.Source --fail --location --progress-bar --retry 3 --retry-delay 2 --connect-timeout 20 -o $vlcPart $VlcUrl
+        if ($LASTEXITCODE -ne 0) { throw "VLC download failed (curl exit code $LASTEXITCODE)." }
+    } else {
+        Invoke-WebRequest -Uri $VlcUrl -OutFile $vlcPart -UseBasicParsing -TimeoutSec 900
+    }
+    if (-not (Test-Path $vlcPart)) { throw "The VLC archive was not downloaded." }
+    $vlcSize = (Get-Item $vlcPart).Length
+    if ($vlcSize -lt 40MB) { throw "The VLC archive appears incomplete ($([math]::Round($vlcSize / 1MB, 1)) MB)." }
+    Move-Item -Path $vlcPart -Destination $VlcZip -Force
+    Write-Host "Extracting VLC runtime..." -ForegroundColor Yellow
+    Expand-Archive -Path $VlcZip -DestinationPath $VlcDir -Force
+    $libvlc = Get-ChildItem -Path $VlcDir -Filter "libvlc.dll" -Recurse | Select-Object -First 1
+    $libvlccore = Get-ChildItem -Path $VlcDir -Filter "libvlccore.dll" -Recurse | Select-Object -First 1
+    $vlcPlugins = Get-ChildItem -Path $VlcDir -Directory -Filter "plugins" -Recurse | Select-Object -First 1
+}
+
+if (-not $libvlc -or -not $libvlccore -or -not $vlcPlugins) {
+    throw "Could not find libvlc.dll, libvlccore.dll, or VLC plugins after the download."
+}
+Write-Host "libVLC:    $($libvlc.FullName)"
+Write-Host "VLC plugins: $($vlcPlugins.FullName)"
+$vlcRuntimeRoot = $libvlc.Directory.FullName
+$vlcRootDlls = Get-ChildItem -Path $vlcRuntimeRoot -Filter "*.dll" -File
+
+# 3) Use a dedicated virtual environment so the user's regular Python installation is not modified.
+# Python venvs contain absolute paths. If an old Build Kit was moved/copied, recreate the venv automatically.
+$VenvPython = Join-Path $Venv "Scripts\python.exe"
+$NeedNewVenv = -not (Test-Path $VenvPython)
+if (-not $NeedNewVenv) {
+    try {
+        & $VenvPython -c "import sys; print(sys.executable)" *> $null
+        if ($LASTEXITCODE -ne 0) { $NeedNewVenv = $true }
+    } catch {
+        $NeedNewVenv = $true
+    }
+}
+if ($NeedNewVenv) {
+    if (Test-Path $Venv) {
+        Write-Host "Old or moved Python build environment detected. Recreating it..." -ForegroundColor Yellow
+        Remove-Item $Venv -Recurse -Force
+    } else {
+        Write-Host "Creating temporary Python build environment..." -ForegroundColor Yellow
+    }
     Invoke-Python -Arguments @("-m", "venv", $Venv)
 }
 
 $VenvPython = Join-Path $Venv "Scripts\python.exe"
-Write-Host "Installing/updating Pillow, drag & drop support, and PyInstaller..." -ForegroundColor Yellow
+Write-Host "Installing/updating Pillow, drag & drop support, VLC bindings, and PyInstaller..." -ForegroundColor Yellow
 & $VenvPython -m pip install --disable-pip-version-check --upgrade pip
 if ($LASTEXITCODE -ne 0) { throw "pip update failed." }
 & $VenvPython -m pip install --disable-pip-version-check -r (Join-Path $Root "requirements-build.txt")
 if ($LASTEXITCODE -ne 0) { throw "Build dependency installation failed." }
 
-$PyInstaller = Join-Path $Venv "Scripts\pyinstaller.exe"
 $Source = Join-Path $Root "torrent_creator.py"
 $VersionInfo = Join-Path $Root "version_info.txt"
 $DistRoot = Join-Path $Root "dist-windows"
@@ -132,9 +187,17 @@ function Build-App {
         "--specpath", $work,
         "--add-binary", "$($ffmpeg.FullName);.",
         "--add-binary", "$($ffprobe.FullName);.",
+        "--add-data", "$($vlcPlugins.FullName);vlc/plugins",
+        "--hidden-import", "vlc",
         "--collect-all", "PIL",
         "--collect-all", "tkinterdnd2"
     )
+
+    # Bundle every DLL from the VLC runtime root. Some VLC plugins depend on
+    # companion runtime DLLs in addition to libvlc.dll/libvlccore.dll.
+    foreach ($dll in $vlcRootDlls) {
+        $pyiArgs += @("--add-binary", "$($dll.FullName);vlc")
+    }
 
     if ($Kind -eq "Single") {
         $pyiArgs += "--onefile"
@@ -147,7 +210,7 @@ function Build-App {
 
     Write-Host ""
     Write-Host "Building $Kind version..." -ForegroundColor Cyan
-    & $PyInstaller @pyiArgs
+    & $VenvPython -m PyInstaller @pyiArgs
     if ($LASTEXITCODE -ne 0) { throw "PyInstaller failed for the $Kind version." }
 
     Copy-Item (Join-Path $Root "README.md") $dist -Force
@@ -178,4 +241,4 @@ Write-Host ""
 Write-Host "Build complete. Output is located in:" -ForegroundColor Green
 Write-Host "  $DistRoot"
 Write-Host ""
-Write-Host "FFmpeg and FFprobe are bundled with the Windows build. End users do not need to install Python, Pillow, tkinterdnd2, or FFmpeg." -ForegroundColor Green
+Write-Host "FFmpeg, FFprobe, and the VLC/libVLC runtime are bundled with the Windows build. End users do not need to install Python, Pillow, tkinterdnd2, FFmpeg, or VLC." -ForegroundColor Green
